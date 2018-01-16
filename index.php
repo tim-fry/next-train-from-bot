@@ -1,4 +1,5 @@
  <?php
+require("OpenLDBWS.php");
 
 include "tokens.php";
 
@@ -58,7 +59,7 @@ if (is_null($from_station)) {
       die($msg);
       echo $msg;
     } else {
-      $from_station = $crs_array[array_search(strtolower($from_station), $crs_array)];
+      $from_station = strtoupper(array_search(strtolower($from_station), $crs_array));
     }
   }
 }
@@ -75,30 +76,27 @@ if ($to) {
         die($msg);
         echo $msg;
       } else {
-        $to_station = $crs_array[array_search(strtolower($to_station), $crs_array)];
+        $to_station = strtoupper(array_search(strtolower($to_station), $crs_array));
       }
     }
   }
 }
 
-// Generate Address
-$address = "https://huxley.apphb.com/all/";
+// Access API
+
+$OpenLDBWS = new OpenLDBWS($nationalrail_token);
 
 if ($to) {
-  $address = $address.$from_station."/to/".$to_station."/1?accessToken=".$nationalrail_token;
+  $phpresponse = $OpenLDBWS->GetDepartureBoard(1, $from_station,$to_station);
 } else {
-  $address = $address.$from_station."/1?accessToken=".$nationalrail_token;
+  $phpresponse = $OpenLDBWS->GetArrivalDepartureBoard(1,$from_station);
 }
 
-$response = file_get_contents($address);
+if (!isset($phpresponse->GetStationBoardResult->trainServices)) {
 
-$json = json_decode($response, true);
-
-if (is_null($json["trainServices"])) {
-
-  if (!is_null($json["busServices"])) {
+  if (isset($phpresponse->GetStationBoardResult->busServices)) {
     echo 'The next train is actually a bus...';
-  } elseif (!is_null($json["ferryServices"])) {
+  } elseif (isset($phpresponse->GetStationBoardResult->ferryServices)) {
     echo 'The next train is acutally a ferry... ahoy!';
   } else {
     echo 'Sorry, unable to find any trains...';
@@ -107,27 +105,27 @@ if (is_null($json["trainServices"])) {
 } else {
 
 if ($to) {
-  echo 'The next train from '.$json["locationName"].' to '.$json["filterLocationName"];
+  echo 'The next train from '.$phpresponse->GetStationBoardResult->locationName.' to '.$phpresponse->GetStationBoardResult->filterLocationName;
 } else {
-  echo 'The next train at '.$json["locationName"];
+  echo 'The next train at '.$phpresponse->GetStationBoardResult->locationName;
 }
 
 // if std = null, train is arrival
-if (is_null($json["trainServices"][0]["std"])) {
-  echo ' is the '.$json["trainServices"][0]["sta"];
-  echo ' from '.$json["trainServices"][0]["origin"][0]["locationName"];
-  if (strcmp($json["trainServices"][0]["eta"], "On time") !== 0) {
-    echo ' due at '.$json["trainServices"][0]["eta"];
+if (!isset($phpresponse->GetStationBoardResult->trainServices->service->std)) {
+  echo ' is the '.$phpresponse->GetStationBoardResult->trainServices->service->sta;
+  echo ' from '.$phpresponse->GetStationBoardResult->trainServices->service->origin->location->locationName;
+  if (strcmp($phpresponse->GetStationBoardResult->trainServices->service->eta, "On time") !== 0) {
+    echo ' due at '.$phpresponse->GetStationBoardResult->trainServices->service->eta;
   }
 } else {
   // if sta = null, train is departure
-  echo ' is the '.$json["trainServices"][0]["std"];
-  if (!is_null($json["trainServices"][0]["sta"])) {
-    echo ' from '.$json["trainServices"][0]["origin"][0]["locationName"];
+  echo ' is the '.$phpresponse->GetStationBoardResult->trainServices->service->std;
+  if (!isset($phpresponse->GetStationBoardResult->trainServices->service->sta)) {
+    echo ' from '.$phpresponse->GetStationBoardResult->trainServices->service->origin->location->locationName;
   }
-  echo ' to '.$json["trainServices"][0]["destination"][0]["locationName"];
-  if (strcmp($json["trainServices"][0]["etd"], "On time") !== 0) {
-    echo ' due at '.$json["trainServices"][0]["etd"];
+  echo ' to '.$phpresponse->GetStationBoardResult->trainServices->service->destination->location->locationName;
+  if (strcmp($phpresponse->GetStationBoardResult->trainServices->service->etd, "On time") !== 0) {
+    echo ' due at '.$phpresponse->GetStationBoardResult->trainServices->service->etd;
   }
 
 }
